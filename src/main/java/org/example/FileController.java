@@ -12,20 +12,20 @@ import org.apache.jackrabbit.oak.segment.file.InvalidFileStoreVersionException;
 import org.apache.jackrabbit.oak.segment.file.ReadOnlyFileStore;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.blob.FileBlobStore;
+import org.apache.jackrabbit.value.BinaryImpl;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.jcr.LoginException;
-import javax.jcr.Repository;
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
+import javax.jcr.*;
+import javax.jcr.lock.LockException;
+import javax.jcr.nodetype.ConstraintViolationException;
+import javax.jcr.version.VersionException;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 
 @RestController("/api/file")
@@ -37,21 +37,34 @@ public class FileController {
     @PostMapping(value = "/persist", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
     public void persist(@RequestPart String processKey, @RequestPart String instanceId, @RequestPart List<MultipartFile> files) {
         try {
-            FileStore fs = FileStoreBuilder.fileStoreBuilder(new File("repository")).build();
+            String repository = "repository";
+
+            FileStore fs = FileStoreBuilder.fileStoreBuilder(new File(repository)).build();
             SegmentNodeStore ns = SegmentNodeStoreBuilders.builder(fs).build();
             Repository repo = new Jcr(new Oak(ns)).createRepository();
 
-            Session session = repo.login();
-            
+            Session session = repo.login(new SimpleCredentials("admin", "admin".toCharArray()), null);
+            Node processNode = session.getRootNode().addNode(processKey);
+            Node instanceNode = processNode.addNode(instanceId);
 
             files.forEach(f -> {
                 try {
-                    fs.getWriter().writeStream(f.getInputStream());
+                    instanceNode.setProperty(f.getName(), new BinaryImpl(f.getInputStream()));
                 } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (LockException e) {
+                    e.printStackTrace();
+                } catch (ValueFormatException e) {
+                    e.printStackTrace();
+                } catch (ConstraintViolationException e) {
+                    e.printStackTrace();
+                } catch (VersionException e) {
+                    e.printStackTrace();
+                } catch (RepositoryException e) {
                     e.printStackTrace();
                 }
             });
-            fs.getWriter().flush();
+            session.save();
 
         } catch(IOException  | InvalidFileStoreVersionException e) {
             e.printStackTrace();
@@ -62,14 +75,48 @@ public class FileController {
         }
     }
 
-    @GetMapping(value = "/get", produces = { MediaType.MULTIPART_FORM_DATA_VALUE })
-    public void get(@RequestPart String processKey, @RequestPart String instanceId) {
+    @GetMapping(value = "/get", produces = { MediaType.APPLICATION_JSON_VALUE })
+    public List get(@RequestParam String processKey, @RequestParam String instanceId) {
         try {
             FileStore fs = FileStoreBuilder.fileStoreBuilder(new File("repository")).build();
+            SegmentNodeStore ns = SegmentNodeStoreBuilders.builder(fs).build();
+            Repository repo = new Jcr(new Oak(ns)).createRepository();
+
+            Session session = repo.login(new SimpleCredentials("admin", "admin".toCharArray()), null);
+            Node processNode = session.getRootNode().addNode(processKey);
+            Node instanceNode = processNode.addNode(instanceId);
+
+            LinkedList<String> result = new LinkedList<>();
+            PropertyIterator props = instanceNode.getProperties();
+            while(props.hasNext()) {
+                Property prop = props.nextProperty();
+                String name = prop.getName();
+                Binary binary = prop.getBinary();
+                System.out.println("propertyName: " + name);
+                System.out.println(binary);
+                result.add(name);
+            }
+
+            return result;
 
         } catch(IOException  | InvalidFileStoreVersionException e) {
             e.printStackTrace();
+        } catch (LockException e) {
+            e.printStackTrace();
+        } catch (ItemExistsException e) {
+            e.printStackTrace();
+        } catch (LoginException e) {
+            e.printStackTrace();
+        } catch (ConstraintViolationException e) {
+            e.printStackTrace();
+        } catch (PathNotFoundException e) {
+            e.printStackTrace();
+        } catch (VersionException e) {
+            e.printStackTrace();
+        } catch (RepositoryException e) {
+            e.printStackTrace();
         }
+        return new ArrayList();
     }
 
 

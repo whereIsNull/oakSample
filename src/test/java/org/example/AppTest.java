@@ -4,6 +4,12 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 /**
  * Unit test for simple App.
  */
@@ -28,17 +34,13 @@ public class AppTest
         seekedList.add(arr.get(0));
         return arr.subList(1, arr.size()).stream().reduce(-1, (r, e) -> {
             System.out.println("result: " + r + ", element: " + e);
-            Optional<Integer> currentDiff = seekedList.stream().reduce((maxDiff, current) -> {
+            Integer currentDiff = seekedList.stream().reduce(-1, (maxDiff, current) -> {
                 System.out.println("e - current: " + e + "-" + current + "=" + (e -current));
                 return (((e-current) > maxDiff)? (e-current): maxDiff);
             });
             seekedList.add(e);
             //System.out.println(currentDiff.get());
-            if(r > currentDiff.get()) {
-                return r;
-            } else {
-                return currentDiff.get();
-            }
+            return(r > currentDiff)? r: currentDiff.intValue();
         });
     }
 }
